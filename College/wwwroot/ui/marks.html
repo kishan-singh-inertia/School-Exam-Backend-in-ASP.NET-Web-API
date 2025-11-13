@@ -1,0 +1,177 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Student Marks Updater</title>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <style>
+        body {
+            font-family: Arial;
+            margin: 40px;
+        }
+
+        table {
+            border-collapse: collapse;
+            width: 70%;
+            margin-top: 20px;
+        }
+
+        th, td {
+            border: 1px solid #555;
+            padding: 8px;
+            text-align: center;
+        }
+
+        th {
+            background-color: #eee;
+        }
+
+        input[type=text], input[type=number] {
+            width: 80px;
+            padding: 4px;
+        }
+
+        button {
+            margin: 5px;
+            padding: 6px 12px;
+        }
+
+        .total-row {
+            font-weight: bold;
+        }
+
+        .student-header {
+            margin-top: 20px;
+            font-size: 18px;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+
+    <h2>Student Marks Updater</h2>
+
+    <label>Enter Roll No:</label>
+    <input type="text" id="rollNo" placeholder="e.g. CB001">
+    <button id="showMarks">Show Marks</button>
+
+    <div id="marksGrid"></div>
+
+    <script>
+        function getGrade(marks) {
+            if (marks < 41) return 'F';
+            else if (marks <= 60) return 'A';
+            else if (marks <= 80) return 'B';
+            else return 'A+';
+        }
+
+        $("#showMarks").click(function () {
+            const rollNo = $("#rollNo").val();
+            if (!rollNo) return alert("Please enter Roll No");
+
+            $.get(`/api/college/marks/${rollNo}`, function (data) {
+                if (!data || data.length === 0) {
+                    $("#marksGrid").html("<p>No marks found for this Roll No.</p>");
+                    return;
+                }
+
+                const studentName = data[0].cName;
+                const studentRoll = data[0].cRollNo;
+
+                let total = 0;
+                let html = `
+                        <div class="student-header">Student: ${studentName} (${studentRoll})</div>
+                        <table>
+                            <tr><th>SL No</th><th>Subject</th><th>Marks Obtained</th><th>GRADE</th><th>Action</th></tr>`;
+
+                data.forEach((m, i) => {
+                    const grade = getGrade(m.marksObtained);
+                    total += m.marksObtained;
+                    html += `
+                            <tr>
+                                <td>${i + 1}</td>
+                                <td>${m.subTitle}</td>
+                                <td><input type='number' value='${m.marksObtained}'
+                                           data-subcode='${m.subCode}' /></td>
+                                <td>${grade}</td>
+                                <td>
+                                    <button onclick="updateMark('${rollNo}','${m.subCode}', this)">Update</button>
+                                    <button onclick="deleteMark('${rollNo}','${m.subCode}')">Remove</button>
+                                </td>
+                            </tr>`;
+                });
+
+                html += `<tr class='total-row'><td colspan='2'>Total</td><td colspan='3'>${total}</td></tr>`;
+                html += `<tr><td colspan='5'><button onclick="addMark('${rollNo}')">Add Marks</button></td></tr>`;
+                html += `</table>`;
+                $("#marksGrid").html(html);
+            })
+                .fail(function (xhr) {
+                    alert(`Error fetching marks: ${xhr.responseJSON ? xhr.responseJSON.Message : xhr.statusText}`);
+                    $("#marksGrid").empty();
+                });
+        });
+
+        function updateMark(rollNo, subCode, btn) {
+            const marks = $(btn).closest("tr").find("input[type='number']").val();
+
+            if (!marks || isNaN(parseFloat(marks))) {
+                return alert("Please enter a valid number for marks.");
+            }
+
+            $.ajax({
+                url: `/api/college/marks/${rollNo}/${subCode}`,
+                method: "PUT",
+                contentType: "application/json",
+                data: JSON.stringify(parseFloat(marks)),
+                success: () => {
+                    alert("Updated successfully! Please click 'Show Marks' to refresh the grid.");
+                    $("#showMarks").click();
+                },
+                error: (xhr) => alert("Error updating: " + xhr.responseText)
+            });
+        }
+
+        function deleteMark(rollNo, subCode) {
+            if (!confirm(`Are you sure you want to delete the mark for Roll No ${rollNo} and Subject Code ${subCode}?`)) {
+                return;
+            }
+            $.ajax({
+                url: `/api/college/marks/${rollNo}/${subCode}`,
+                method: "DELETE",
+                success: () => {
+                    alert("Deleted successfully! Please click 'Show Marks' to refresh the grid.");
+                    $("#showMarks").click();
+                },
+                error: (xhr) => alert("Error deleting: " + xhr.responseText)
+            });
+        }
+
+        function addMark(rollNo) {
+            const subjectCode = prompt("Enter **Subject Code** (e.g., PHY)");
+            if (!subjectCode) return;
+            const marks = prompt("Enter marks:");
+            if (!marks || isNaN(parseFloat(marks))) {
+                return alert("Please enter a valid number for marks.");
+            }
+
+            $.ajax({
+                url: `/api/college/marks`,
+                method: "POST",
+                contentType: "application/json",
+                data: JSON.stringify({
+                    cRollNo: rollNo,
+                    subCode: subjectCode,
+                    marksObtained: parseFloat(marks)
+                }),
+                success: () => {
+                    alert("Added successfully! Please click 'Show Marks' to refresh the grid.");
+                    $("#showMarks").click();
+                },
+                error: (xhr) => alert("Error adding mark: " + xhr.responseText)
+            });
+        }
+    </script>
+
+</body>
+</html>

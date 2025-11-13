@@ -1,0 +1,6 @@
+@College_HostAddress = http://localhost:5156/api/college
+
+GET {{College_HostAddress}}/marks/CB001
+Accept: application/json
+
+###
